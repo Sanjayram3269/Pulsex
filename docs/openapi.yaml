@@ -1,5 +1,5 @@
 openapi: 3.1.0
-info: {title: PULSEX API, version: 1.0.0}
+info: {title: PULSEX API, version: 2.0.0}
 servers: [{url: /api/v1}]
 security: []
 paths:
@@ -160,10 +160,7 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              required: [choice]
-              properties: {choice: {type: integer, minimum: 0, maximum: 7}}
+            schema: {$ref: '#/components/schemas/Ballot'}
             example: {choice: 0}
       responses:
         '201':
@@ -237,10 +234,205 @@ paths:
       operationId: streamRoom
       summary: Stream room state, question, deadline and presence
       responses: {'200': {$ref: '#/components/responses/SSE'}, default: {$ref: '#/components/responses/Error'}}
+  /polls/{id}/terms:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: listPendingTerms
+      summary: Read private word-cloud moderation queue
+      security: [{creatorSession: []}]
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /polls/{id}/terms/{term}:
+    parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/Term'}]
+    post:
+      operationId: reviewTerm
+      summary: Approve or reject one pending cloud response
+      security: [{creatorSession: []}]
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/ModerateTerm'}
+      responses: {'204': {description: Change saved}, default: {$ref: '#/components/responses/Error'}}
+  /quizzes:
+    get:
+      operationId: listQuizzes
+      summary: List owned quizzes
+      security: [{creatorSession: []}]
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+    post:
+      operationId: createQuiz
+      summary: Create a waiting quiz
+      security: [{creatorSession: []}]
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/Quiz'}
+      responses: {'201': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /quizzes/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: getQuiz
+      summary: Read owned quiz configuration
+      security: [{creatorSession: []}]
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+    put:
+      operationId: editQuiz
+      summary: Edit a waiting quiz
+      security: [{creatorSession: []}]
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/Quiz'}
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /quizzes/{id}/action:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post:
+      operationId: quizAction
+      summary: Start, advance, close, finish or duplicate
+      security: [{creatorSession: []}]
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/QuizAction'}
+      responses: {'200': {$ref: '#/components/responses/JSON'}, '201': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /quizzes/{id}/export:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: exportQuiz
+      summary: Download anonymized quiz scores
+      security: [{creatorSession: []}]
+      responses: {'200': {$ref: '#/components/responses/CSV'}, default: {$ref: '#/components/responses/Error'}}
+  /quizzes/{id}/insights:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: quizInsights
+      summary: Read quiz participation, accuracy and completion
+      security: [{creatorSession: []}]
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /rooms/{id}/insights:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: roomInsights
+      summary: Read room presence and submitted ballot totals
+      security: [{creatorSession: []}]
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /public/quizzes/{code}:
+    parameters: [{$ref: '#/components/parameters/Code'}]
+    get:
+      operationId: getPublicQuiz
+      summary: Read a safe quiz view and initialize guest identity
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /public/quizzes/{code}/events:
+    parameters: [{$ref: '#/components/parameters/Code'}]
+    get:
+      operationId: streamQuiz
+      summary: Stream visible quiz state and permitted rankings
+      responses: {'200': {$ref: '#/components/responses/SSE'}, default: {$ref: '#/components/responses/Error'}}
+  /public/quizzes/{code}/join:
+    parameters: [{$ref: '#/components/parameters/Code'}]
+    post:
+      operationId: joinQuiz
+      summary: Join a quiz using a signed guest cookie
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/QuizJoin'}
+      responses: {'201': {$ref: '#/components/responses/JSON'}, '200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /public/quizzes/{code}/answers:
+    parameters: [{$ref: '#/components/parameters/Code'}]
+    post:
+      operationId: submitQuizAnswer
+      summary: Submit one server-timed answer
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/QuizAnswer'}
+      responses: {'201': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /rooms/{id}/qa:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: getHostQA
+      summary: Read approved and pending questions as host
+      security: [{creatorSession: []}]
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+    put:
+      operationId: toggleQA
+      summary: Enable or disable a room Q&A wall
+      security: [{creatorSession: []}]
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/QAToggle'}
+      responses: {'204': {description: Change saved}, default: {$ref: '#/components/responses/Error'}}
+  /rooms/{id}/qa/events:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: streamHostQA
+      summary: Stream the protected host moderation queue
+      security: [{creatorSession: []}]
+      responses: {'200': {$ref: '#/components/responses/SSE'}, default: {$ref: '#/components/responses/Error'}}
+  /rooms/{id}/qa/{question}:
+    parameters: [{$ref: '#/components/parameters/Id'}, {$ref: '#/components/parameters/QuestionId'}]
+    post:
+      operationId: moderateQA
+      summary: Moderate an audience submission
+      security: [{creatorSession: []}]
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/QAModerate'}
+      responses: {'204': {description: Change saved}, default: {$ref: '#/components/responses/Error'}}
+  /public/rooms/{code}/qa:
+    parameters: [{$ref: '#/components/parameters/Code'}]
+    get:
+      operationId: getAudienceQA
+      summary: Read approved audience questions
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+    post:
+      operationId: submitQA
+      summary: Submit a question for private review
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/QASubmit'}
+      responses: {'201': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /public/rooms/{code}/qa/events:
+    parameters: [{$ref: '#/components/parameters/Code'}]
+    get:
+      operationId: streamAudienceQA
+      summary: Stream approved questions and vote totals
+      responses: {'200': {$ref: '#/components/responses/SSE'}, default: {$ref: '#/components/responses/Error'}}
+  /public/rooms/{code}/qa/{question}/vote:
+    parameters: [{$ref: '#/components/parameters/Code'}, {$ref: '#/components/parameters/QuestionId'}]
+    put:
+      operationId: setUpvote
+      summary: Set this identity's upvote state idempotently
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/QAUpvote'}
+      responses: {'204': {description: Change saved}, default: {$ref: '#/components/responses/Error'}}
+  /public/demo:
+    post:
+      operationId: createDemo
+      summary: Create an isolated short-lived sample room
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      responses: {'201': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
 components:
+  schemas:
+    QuizInput:
+      type: object
+      required: [title, questions, reveal, participation]
+      properties:
+        title: {type: string, minLength: 3, maxLength: 100}
+        theme: {enum: [obsidian, aurora, ember]}
+        reveal: {enum: [each, final]}
+        participation: {enum: [named, anonymous]}
+        speedBonus: {type: boolean}
+        questions:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            required: [prompt, choices, correct, seconds, points]
+            properties:
+              prompt: {type: string, minLength: 3, maxLength: 140}
+              choices: {type: array, items: {type: string}, minItems: 2, maxItems: 8}
+              correct: {type: integer, minimum: 0, maximum: 7}
+              seconds: {type: integer, minimum: 5, maximum: 180}
+              points: {type: integer, minimum: 1, maximum: 10000}
+    Ballot:
+      oneOf:
+        - {type: object, additionalProperties: false, required: [choice], properties: {choice: {type: integer, minimum: 0, maximum: 7}}}
+        - {type: object, additionalProperties: false, required: [choices], properties: {choices: {type: array, minItems: 1, maxItems: 8, uniqueItems: true, items: {type: integer, minimum: 0, maximum: 7}}}}
+        - {type: object, additionalProperties: false, required: [rating], properties: {rating: {type: integer, minimum: 1, maximum: 10}}}
+        - {type: object, additionalProperties: false, required: [ranking], properties: {ranking: {type: array, minItems: 2, maxItems: 8, uniqueItems: true, items: {type: integer, minimum: 0, maximum: 7}}}}
+        - {type: object, additionalProperties: false, required: [text], properties: {text: {type: string, maxLength: 100, description: Up to 40 normalized characters}}}
   securitySchemes:
     creatorSession: {type: apiKey, in: cookie, name: pulsex_session}
   parameters:
+    QuestionId: {name: question, in: path, required: true, schema: {type: string}}
+    Term: {name: term, in: path, required: true, schema: {type: string}}
     Origin: {name: Origin, in: header, required: true, schema: {type: string}, description: Exact APP_ORIGIN}
     Id: {name: id, in: path, required: true, schema: {type: string, pattern: '^[0-9a-f]{24}$'}}
     Slug: {name: slug, in: path, required: true, schema: {type: string, pattern: '^[0-9a-f]{20}$'}}
@@ -248,6 +440,33 @@ components:
     Page: {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 1000, default: 1}}
     Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 30}}
   requestBodies:
+    ModerateTerm:
+      required: true
+      content: {application/json: {schema: {type: object, required: [action], properties: {action: {enum: [approve, reject]}}}}}
+    QuizAction:
+      required: true
+      content: {application/json: {schema: {type: object, required: [action], properties: {action: {enum: [next, pause, finish, duplicate]}, control: {type: integer}}}}}
+    QuizJoin:
+      required: true
+      content: {application/json: {schema: {type: object, properties: {name: {type: string, maxLength: 32}}}}}
+    QuizAnswer:
+      required: true
+      content: {application/json: {schema: {type: object, required: [round, choice], properties: {round: {type: integer, minimum: 0, maximum: 19}, choice: {type: integer, minimum: 0, maximum: 7}}}}}
+    QAToggle:
+      required: true
+      content: {application/json: {schema: {type: object, required: [enabled], properties: {enabled: {type: boolean}}}}}
+    QAModerate:
+      required: true
+      content: {application/json: {schema: {type: object, required: [action], properties: {action: {enum: [approve, reject, hide, pin, unpin, answer, reopen]}}}}}
+    QASubmit:
+      required: true
+      content: {application/json: {schema: {type: object, required: [text], properties: {text: {type: string, minLength: 8, maxLength: 240}}}}}
+    QAUpvote:
+      required: true
+      content: {application/json: {schema: {type: object, required: [active], properties: {active: {type: boolean}}}}}
+    Quiz:
+      required: true
+      content: {application/json: {schema: {$ref: '#/components/schemas/QuizInput'}}}
     Credentials:
       required: true
       content:
@@ -265,11 +484,19 @@ components:
         application/json:
           schema:
             type: object
-            required: [title, choices, visibility, guests]
+            required: [title, visibility, guests]
             properties:
               title: {type: string, minLength: 3, maxLength: 140}
               description: {type: string, maxLength: 1000}
-              choices: {type: array, minItems: 2, maxItems: 8, items: {type: string, minLength: 1, maxLength: 80}}
+              choices: {type: array, maxItems: 8, items: {type: string, minLength: 1, maxLength: 80}}
+              question:
+                type: object
+                required: [type, version]
+                properties:
+                  type: {enum: [single_choice, multiple_choice, rating, ranked_choice, word_cloud]}
+                  version: {const: 1}
+                  min: {type: integer}
+                  max: {type: integer}
               visibility: {type: string, enum: [live, after_close, private]}
               guests: {type: boolean}
               opens: {type: [string, 'null'], format: date-time}
@@ -284,8 +511,12 @@ components:
             required: [title, polls]
             properties:
               title: {type: string, minLength: 3, maxLength: 100}
+              theme: {enum: [obsidian, aurora, ember]}
               polls: {type: array, minItems: 1, maxItems: 20, uniqueItems: true, items: {type: string, pattern: '^[0-9a-f]{20}$'}}
   responses:
+    CSV:
+      description: CSV export
+      content: {text/csv: {schema: {type: string}}}
     JSON:
       description: JSON response
       content: {application/json: {schema: {type: object}}}
@@ -309,8 +540,15 @@ components:
           schema:
             type: object
             required: [version, counts]
-            properties: {version: {type: integer}, counts: {type: array, items: {type: integer}}}
-          example: {version: 7, counts: [3, 2]}
+            properties:
+              version: {type: integer}
+              counts: {type: array, items: {type: integer}}
+              ballots: {type: integer, description: Distinct accepted ballots. Word clouds show approved responses.}
+              rankPoints: {type: array, items: {type: integer}, description: Borda scores in choice order}
+              terms:
+                type: array
+                items: {type: object, required: [text, count], properties: {text: {type: string}, count: {type: integer}}}
+          example: {version: 7, counts: [3, 2], ballots: 5}
     SSE:
       description: Full snapshots on initial connection and when state changes. Result counts may be omitted by policy.
       content:

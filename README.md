@@ -1,30 +1,38 @@
 <p align="center"><img src="frontend/public/favicon.svg" width="56" height="56" alt=""></p>
 
-<h1 align="center">PULSEX</h1>
+<h1 align="center">PULSEX V2</h1>
 <p align="center"><strong>Read the room. In real time.</strong></p>
 <p align="center">Live audience polling for classrooms, workshops, and events.</p>
 
 [![Verify](https://github.com/Sanjayram3269/Pulsex/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanjayram3269/Pulsex/actions/workflows/ci.yml)
 
-![PULSEX landing page](docs/screenshots/landing.png)
+![PULSEX V2 landing page](docs/screenshots/v2-landing.png)
 
-PULSEX lets creators publish a question, share a link or QR code, and watch answers arrive live. Host several questions in one room, give participants one link, and show a synchronized presentation while voting is open.
+PULSEX lets presenters run live polls, timed quizzes, and moderated Q&A from one workspace. Give participants one link or QR code and follow responses on a shared presentation screen. Try the guided demo after starting the app to create a temporary live room without signing up.
 
 ## What you can do
 
 | Area | Capabilities |
 | --- | --- |
 | **Identity** | Create an account, sign in and out, update your profile, and manage polls and rooms within your workspace. |
-| **Studio** | Draft, preview, edit, duplicate, publish, close and archive single-choice polls. Schedule voting, set audience result visibility, and share a link or QR code. |
+| **Studio** | Draft, preview, duplicate, publish, schedule and archive five poll types. Control result visibility and invite with a link or QR code. |
 | **Live** | Vote from a phone as a guest or signed-in participant according to poll rules. Watch visible results update without a reload, including after reconnecting. |
-| **Arena** | Arrange polls in a room, invite with a code or QR, advance the active question, set a deadline, track approximate presence and present results full-screen. |
-| **Insights** | View answer distribution, total votes and hourly participation from the vote ledger. Export per-choice totals to CSV. |
+| **Arena** | Arrange polls in a room, invite with a code or QR, advance questions, set deadlines and present with Obsidian, Aurora or Ember themes. |
+| **Quiz Arena** | Run timed multiplayer quizzes with optional speed bonuses, controlled answer reveals, final podium and alias-free score exports. |
+| **Q&A** | Review incoming questions privately, approve or hide them, track unique upvotes and pin selected questions to the presentation. |
+| **Insights** | View poll and session results, question engagement, quiz accuracy and completion, and comparisons between sessions. Export aggregates to CSV. |
 
 | Creator Studio | Live results |
 | --- | --- |
 | ![Creator dashboard](docs/screenshots/studio.png) | ![Live results for a practice poll](docs/screenshots/live-results.png) |
 
-[Poll editor](docs/screenshots/editor.png) · [Mobile voting](docs/screenshots/mobile-vote.png) · [Analytics](docs/screenshots/analytics.png)
+[Poll editor](docs/screenshots/editor.png) · [Mobile voting](docs/screenshots/mobile-vote.png) · [Poll analytics](docs/screenshots/analytics.png)
+
+| Quiz podium | Session insights |
+| --- | --- |
+| ![Quiz final leaderboard](docs/screenshots/v2-quiz-leaderboard.png) | ![Quiz accuracy, ballots and completion](docs/screenshots/v2-session-insights.png) |
+
+[Q&A moderation](docs/screenshots/v2-qa-host.png) · [Guided demo room](docs/screenshots/v2-guided-demo.png)
 
 ## Run locally
 
@@ -80,7 +88,7 @@ Each API replica uses one Redis subscription and bounded per-spectator buffers. 
 
 The hot-poll write contention point is the MongoDB poll document. The single-origin deployment simplifies cookie handling and keeps the SPA, API and SSE under one HTTPS origin. Guest deduplication is browser-level. Account-required polls deduplicate by account.
 
-[Architecture, indexes and failure recovery](docs/architecture.md) · [Threat model](docs/security.md) · [Operations](docs/operations.md)
+[V2 contracts, scoring and data ownership](docs/v2-architecture.md) · [Architecture, indexes and failure recovery](docs/architecture.md) · [Threat model](docs/security.md) · [Operations](docs/operations.md)
 
 ## API
 
@@ -95,7 +103,7 @@ The [OpenAPI specification](docs/openapi.yaml) documents `/api/v1`. Readiness at
 | `POST /api/v1/public/polls/{slug}/votes` | Cast a vote. Body example is `{"choice":0}`. |
 | `GET /api/v1/public/polls/{slug}/events` | Stream state and visible results. |
 
-A successful vote returns HTTP 201 with `{"accepted":true}`. A duplicate returns HTTP 409 with an error code of `already_voted`. An SSE message contains a full state snapshot such as `{"version":7,"state":"live","counts":[3,2]}`. The counts field is omitted when result visibility requires it.
+Typed payloads are documented for single choice, multiple choice, rating, ranked choice and moderated word clouds. Old clients can continue sending a single `choice`. A successful vote returns HTTP 201 with `{"accepted":true}`. A duplicate returns HTTP 409 with an error code of `already_voted`. An SSE message contains a full state snapshot such as `{"version":7,"state":"live","counts":[3,2]}`. The counts field is omitted when result visibility requires it.
 
 ## Verify
 
@@ -115,10 +123,11 @@ npx playwright install chromium
 npm run test:e2e
 
 cd ..
+node scripts/verify-v2.mjs --recovery
 node scripts/verify.mjs --recovery --rate-limit
 ```
 
-Set `BASE_URL` if using a different local origin. Run the browser suite before the rate-limit check. See the [verification report](docs/verification.md) for measurements and the [k6 scenario](scripts/load.js) for an isolated burst against a fresh guest-enabled poll.
+Set `BASE_URL` if using a different local origin. Set `SCREENSHOT_DIR` to capture the V2 browser walkthrough. Run the browser suite before the rate-limit check. See the [V2 verification report](docs/v2-verification.md) and [V1 baseline](docs/verification.md) for measurements and the [k6 scenario](scripts/load.js) for an isolated burst against a fresh guest-enabled poll.
 
 ## Deploy
 
@@ -130,4 +139,4 @@ The root Dockerfile builds both applications, then copies the Go binaries and SP
 
 The core React, Gin, MongoDB and Redis flow, production configuration, verification, and submission status are tracked in the [assignment checklist](docs/verification.md). The submission also requires a working public deployment and a publicly viewable 3–5-minute video. [Demo walkthrough](docs/demo.md)
 
-OpenAI Codex generated the initial implementation, test code and documentation. It ran real services, used failed checks to identify issues, and iterated on the code. The presenter should describe their own contribution and review truthfully.
+OpenAI Codex assisted with both releases, including implementation, verification and documentation. The application uses deterministic analytics. It does not call an AI provider. The presenter should describe their own contribution and review truthfully.

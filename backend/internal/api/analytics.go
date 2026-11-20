@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Sanjayram3269/Pulsex/backend/internal/models"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -59,9 +60,29 @@ func (s *Server) export(c *gin.Context) {
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", `attachment; filename="pulsex-results.csv"`)
 	w := csv.NewWriter(c.Writer)
-	_ = w.Write([]string{"choice", "votes"})
-	for i, label := range p.Choices {
-		_ = w.Write([]string{excelSafe(label), strconv.FormatInt(p.Counts[i], 10)})
+	switch p.QuestionType() {
+	case models.WordCloud:
+		_ = w.Write([]string{"approved_term", "responses"})
+		for _, term := range p.Snapshot().Terms {
+			_ = w.Write([]string{excelSafe(term.Text), strconv.FormatInt(term.Count, 10)})
+		}
+	case models.RankedChoice:
+		_ = w.Write([]string{"choice", "first_preferences", "borda_points"})
+		for i, label := range p.Choices {
+			_ = w.Write([]string{excelSafe(label), strconv.FormatInt(p.Counts[i], 10), strconv.FormatInt(p.RankPoints[i], 10)})
+		}
+	default:
+		header := []string{"choice", "votes"}
+		if p.QuestionType() == models.MultipleChoice {
+			header[1] = "selections"
+		}
+		if p.QuestionType() == models.Rating {
+			header[0] = "rating"
+		}
+		_ = w.Write(header)
+		for i, label := range p.Choices {
+			_ = w.Write([]string{excelSafe(label), strconv.FormatInt(p.Counts[i], 10)})
+		}
 	}
 	w.Flush()
 }

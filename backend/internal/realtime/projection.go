@@ -47,8 +47,11 @@ func Snapshot(ctx context.Context, s *platform.Store, p models.Poll) (models.Sna
 			return models.Snapshot{}, err
 		}
 		var snap models.Snapshot
-		if len(raw) < 20 || json.Unmarshal([]byte(raw[19:]), &snap) != nil || snap.Version < 1 || len(snap.Counts) < 2 || len(snap.Counts) > 8 {
+		if len(raw) < 20 || json.Unmarshal([]byte(raw[19:]), &snap) != nil || snap.Version < 1 || len(snap.Counts) > 10 || len(snap.Terms) > 100 {
 			return snap, errors.New("invalid projection")
+		}
+		if p.Question == nil && snap.Version == p.Version && snap.Ballots == 0 {
+			snap.Ballots = p.BallotCount()
 		}
 		return snap, nil
 	}

@@ -49,9 +49,12 @@ func (s *Server) publicResults(c *gin.Context) {
 }
 
 type resultEvent struct {
-	Version int64   `json:"version"`
-	State   string  `json:"state"`
-	Counts  []int64 `json:"counts,omitempty"`
+	Version    int64              `json:"version"`
+	State      string             `json:"state"`
+	Counts     *[]int64           `json:"counts,omitempty"`
+	Ballots    *int64             `json:"ballots,omitempty"`
+	RankPoints []int64            `json:"rankPoints,omitempty"`
+	Terms      []models.TermCount `json:"terms,omitempty"`
 }
 
 func (s *Server) pollEvent(ctx context.Context, p models.Poll, owner bool) (any, error) {
@@ -65,7 +68,12 @@ func (s *Server) pollEvent(ctx context.Context, p models.Poll, owner bool) (any,
 		if snap.Version > p.Version {
 			return resultEvent{Version: p.Version, State: event.State}, nil
 		}
-		event.Counts = snap.Counts
+		event.Counts = &snap.Counts
+		// V1 Redis records can lack a ballot total until their next projected write.
+		if p.Question == nil {
+			snap.Ballots = p.BallotCount()
+		}
+		event.Ballots, event.RankPoints, event.Terms = &snap.Ballots, snap.RankPoints, snap.Terms
 	}
 	return event, nil
 }

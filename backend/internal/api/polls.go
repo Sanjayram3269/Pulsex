@@ -14,13 +14,14 @@ import (
 )
 
 type pollInput struct {
-	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	Choices     []string   `json:"choices"`
-	Visibility  string     `json:"visibility"`
-	Guests      bool       `json:"guests"`
-	Opens       *time.Time `json:"opens"`
-	Closes      *time.Time `json:"closes"`
+	Question    *models.Question `json:"question"`
+	Title       string           `json:"title"`
+	Description string           `json:"description"`
+	Choices     []string         `json:"choices"`
+	Visibility  string           `json:"visibility"`
+	Guests      bool             `json:"guests"`
+	Opens       *time.Time       `json:"opens"`
+	Closes      *time.Time       `json:"closes"`
 }
 
 func readPoll(c *gin.Context) (pollInput, bool) {
@@ -30,23 +31,13 @@ func readPoll(c *gin.Context) (pollInput, bool) {
 	}
 	in.Title = strings.TrimSpace(in.Title)
 	in.Description = strings.TrimSpace(in.Description)
-	if !singleLine(in.Title, 3, 140) || !validText(in.Description, 0, 1000) || len(in.Choices) < 2 || len(in.Choices) > 8 {
+	if !singleLine(in.Title, 3, 140) || !validText(in.Description, 0, 1000) {
 		reject(c, "Use a question of 3–140 characters, up to 1,000 description characters, and 2–8 choices.")
 		return in, false
 	}
-	for i, v := range in.Choices {
-		v = strings.TrimSpace(v)
-		if !singleLine(v, 1, 80) {
-			reject(c, "Each choice must have 1–80 characters.")
-			return in, false
-		}
-		for _, prev := range in.Choices[:i] {
-			if strings.EqualFold(v, prev) {
-				reject(c, "Each choice must be different.")
-				return in, false
-			}
-		}
-		in.Choices[i] = v
+	if err := configureQuestion(&in); err != nil {
+		reject(c, err.Error())
+		return in, false
 	}
 	if in.Visibility != "live" && in.Visibility != "after_close" && in.Visibility != "private" {
 		reject(c, "Invalid results visibility.")
@@ -80,10 +71,7 @@ func viewPoll(p models.Poll, owner, voted bool) pollView {
 	p.State = p.Status(now)
 	var total *int64
 	if owner {
-		var n int64
-		for _, c := range p.Counts {
-			n += c
-		}
+		n := p.BallotCount()
 		total = &n
 	} else {
 		p.ID = bson.NilObjectID
@@ -137,7 +125,7 @@ func (s *Server) createPoll(c *gin.Context) {
 	if !ok {
 		return
 	}
-	p := models.Poll{ID: bson.NewObjectID(), Owner: user, Slug: token(10), Title: in.Title, Description: in.Description, Choices: in.Choices, State: "draft", Visibility: in.Visibility, Guests: in.Guests, Opens: in.Opens, Closes: in.Closes, Created: time.Now(), Counts: make([]int64, len(in.Choices)), Version: 1}
+	p := models.Poll{ID: bson.NewObjectID(), Owner: user, Slug: token(10), Title: in.Title, Description: in.Description, Choices: in.Choices, Question: in.Question, RankPoints: rankPoints(in.Question, len(in.Choices)), State: "draft", Visibility: in.Visibility, Guests: in.Guests, Opens: in.Opens, Closes: in.Closes, Created: time.Now(), Counts: make([]int64, len(in.Choices)), Version: 1}
 	if _, err := s.db.Polls.InsertOne(ctx, p); err != nil {
 		dbError(c, err)
 		return
@@ -178,7 +166,7 @@ func (s *Server) editPoll(c *gin.Context) {
 	if !ok {
 		return
 	}
-	err := s.db.Polls.FindOneAndUpdate(ctx, bson.M{"_id": p.ID, "state": "draft", "version": p.Version}, bson.M{"$set": bson.M{"title": in.Title, "description": in.Description, "choices": in.Choices, "visibility": in.Visibility, "guests": in.Guests, "opens": in.Opens, "closes": in.Closes, "counts": make([]int64, len(in.Choices)), "pending": true, "dirtyAt": time.Now()}, "$inc": bson.M{"version": 1}}, options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&p)
+	err := s.db.Polls.FindOneAndUpdate(ctx, bson.M{"_id": p.ID, "state": "draft", "version": p.Version}, bson.M{"$set": bson.M{"title": in.Title, "description": in.Description, "choices": in.Choices, "question": in.Question, "rankPoints": rankPoints(in.Question, len(in.Choices)), "visibility": in.Visibility, "guests": in.Guests, "opens": in.Opens, "closes": in.Closes, "counts": make([]int64, len(in.Choices)), "pending": true, "dirtyAt": time.Now()}, "$inc": bson.M{"version": 1}}, options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&p)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		conflict(c, "Only an unchanged draft can be edited. Reload the poll and try again.")
 		return
@@ -210,6 +198,7 @@ func (s *Server) pollAction(c *gin.Context) {
 	}
 	if in.Action == "duplicate" {
 		p.RoomID = bson.NilObjectID
+		p.Ballots, p.RankPoints, p.Terms = 0, rankPoints(p.Question, len(p.Choices)), nil
 		p.ID, p.Slug, p.State, p.Opens, p.Closes, p.Created, p.Version, p.Counts, p.Pending = bson.NewObjectID(), token(10), "draft", nil, nil, time.Now(), 1, make([]int64, len(p.Choices)), false
 		if _, err := s.db.Polls.InsertOne(ctx, p); err != nil {
 			dbError(c, err)

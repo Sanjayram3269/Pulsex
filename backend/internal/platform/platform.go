@@ -58,9 +58,10 @@ func Load() (Config, error) {
 }
 
 type Store struct {
-	Client                             *mongo.Client
-	Redis                              *redis.Client
-	Users, Logins, Polls, Votes, Rooms *mongo.Collection
+	Client                                       *mongo.Client
+	Redis                                        *redis.Client
+	Users, Logins, Polls, Votes, Rooms           *mongo.Collection
+	QuizPlayers, QuizAnswers, Questions, Upvotes *mongo.Collection
 }
 
 func Connect(ctx context.Context, c Config) (*Store, error) {
@@ -77,7 +78,7 @@ func Connect(ctx context.Context, c Config) (*Store, error) {
 		return nil, errors.New("invalid MongoDB configuration")
 	}
 	db := m.Database(c.Database)
-	s := &Store{m, redis.NewClient(ro), db.Collection("users"), db.Collection("auth_sessions"), db.Collection("polls"), db.Collection("votes"), db.Collection("rooms")}
+	s := &Store{m, redis.NewClient(ro), db.Collection("users"), db.Collection("auth_sessions"), db.Collection("polls"), db.Collection("votes"), db.Collection("rooms"), db.Collection("quiz_players"), db.Collection("quiz_answers"), db.Collection("audience_questions"), db.Collection("audience_upvotes")}
 	if err = s.Ready(ctx); err != nil {
 		s.Close()
 		return nil, err
@@ -115,15 +116,24 @@ func (s *Store) Indexes(ctx context.Context) error {
 		}
 		return mongo.IndexModel{Keys: keys, Options: options.Index().SetUnique(unique)}
 	}
+	demoTTL := mongo.IndexModel{Keys: bson.D{{Key: "demoExpires", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(0)}
 	groups := []struct {
 		collection *mongo.Collection
 		indexes    []mongo.IndexModel
 	}{
 		{s.Users, []mongo.IndexModel{index(true, "email")}},
 		{s.Logins, []mongo.IndexModel{{Keys: bson.D{{Key: "expires", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(0)}}},
-		{s.Polls, []mongo.IndexModel{index(true, "slug"), index(false, "owner", "created", "_id"), index(false, "pending", "dirtyAt", "_id")}},
-		{s.Votes, []mongo.IndexModel{index(true, "poll", "identity"), index(false, "poll", "timestamp")}},
-		{s.Rooms, []mongo.IndexModel{index(true, "code"), index(false, "owner", "created", "_id")}},
+		{s.Polls, []mongo.IndexModel{demoTTL, index(true, "slug"), index(false, "owner", "created", "_id"), index(false, "pending", "dirtyAt", "_id")}},
+		{s.Votes, []mongo.IndexModel{demoTTL, index(true, "poll", "identity"), index(false, "poll", "timestamp"), index(false, "poll", "moderation", "timestamp", "_id")}},
+		{s.Rooms, []mongo.IndexModel{demoTTL, index(true, "code"), index(false, "owner", "created", "_id")}},
+		{s.QuizPlayers, []mongo.IndexModel{index(true, "quiz", "identity"), {Keys: bson.D{{Key: "quiz", Value: 1}, {Key: "points", Value: -1}, {Key: "correct", Value: -1}, {Key: "_id", Value: 1}}}}},
+		{s.QuizAnswers, []mongo.IndexModel{index(true, "quiz", "round", "identity")}},
+		{s.Questions, []mongo.IndexModel{
+			index(false, "room", "identity"),
+			{Keys: bson.D{{Key: "room", Value: 1}, {Key: "state", Value: 1}, {Key: "pinned", Value: -1}, {Key: "votes", Value: -1}, {Key: "created", Value: -1}, {Key: "_id", Value: -1}}},
+			{Keys: bson.D{{Key: "room", Value: 1}, {Key: "state", Value: 1}, {Key: "pinned", Value: -1}, {Key: "created", Value: -1}, {Key: "_id", Value: -1}}},
+		}},
+		{s.Upvotes, []mongo.IndexModel{index(true, "room", "question", "identity"), index(false, "room", "identity", "question")}},
 	}
 	for _, g := range groups {
 		if _, err := g.collection.Indexes().CreateMany(ctx, g.indexes); err != nil {

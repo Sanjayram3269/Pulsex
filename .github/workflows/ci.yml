@@ -42,6 +42,7 @@ jobs:
       - run: docker compose up -d --build --wait
       - working-directory: frontend
         run: npm run test:e2e
+      - run: node scripts/verify-v2.mjs --recovery
       - run: node scripts/verify.mjs --recovery --rate-limit
       - if: failure()
         run: docker compose logs --tail=100

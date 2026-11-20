@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Activity, ArrowRight, BarChart3, CircleDot, Plus, Radio, Users } from 'lucide-react'
 import { Badge, Empty, ErrorBox, Heading, Loading } from '../components/ui'
-import { Results } from '../components/results'
+import { PollResults } from '../components/results'
+import { CloudModeration } from '../components/cloud-moderation'
 import { Share } from '../components/share'
 import { useStream } from '../hooks/live'
 import { api, useUser } from '../services/api'
@@ -68,9 +69,10 @@ export function PollDetails() {
     </div>
     {error !== undefined && <ErrorBox error={error}/>}
     <div className="content-grid">
-      <section className="panel"><div className="connection"><Badge state={stream.state}/></div>{counts ? <Results choices={p.choices} counts={counts}/> : <Loading/>}</section>
+      <section className="panel"><div className="connection"><Badge state={stream.state}/></div>{counts ? <PollResults poll={p} result={{...event,counts}}/> : <Loading/>}</section>
       {state!=='draft' && state!=='archived' ? <Share path={'/p/'+p.slug} label="Share poll"/> :
         <section className="panel"><h2>{state==='draft' ? 'Ready to go live?' : 'Poll archived'}</h2><p className="muted">{state==='draft' ? 'Publish the poll to enable the audience link and QR code.' : 'You can still review or export results for this poll.'}</p></section>}
     </div>
+    {p.question?.type === 'word_cloud' && state !== 'draft' && <CloudModeration id={id}/>}
   </>
 }
