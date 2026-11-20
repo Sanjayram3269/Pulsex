@@ -1,0 +1,52 @@
+name: pulsex
+x-app-env: &app-env
+  APP_ORIGIN: ${APP_ORIGIN:-http://localhost:8080}
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  HTTP_PORT: "8080"
+  GUEST_SECRET: ${GUEST_SECRET:-local-development-only-pulsex-change-for-public}
+  MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017/?replicaSet=rs0}
+  MONGO_DB: ${MONGO_DB:-pulsex}
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+  TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
+x-app: &app
+  image: pulsex:local
+  build: .
+  depends_on:
+    mongo:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: on-failure
+services:
+  mongo:
+    image: mongo:8.0
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    volumes: [mongo-data:/data/db]
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'try { if (!db.hello().isWritablePrimary) { try { rs.initiate({_id:\"rs0\",members:[{_id:0,host:\"mongo:27017\"}]}) } catch(e) {} ; quit(1) } } catch(e) { quit(1) }'"]
+      interval: 4s
+      timeout: 5s
+      retries: 20
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  app:
+    <<: *app
+    environment: *app-env
+    ports: ["127.0.0.1:${HTTP_PORT:-8080}:8080"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v1/ready"]
+      interval: 5s
+      timeout: 4s
+      retries: 10
+  worker:
+    <<: *app
+    environment: *app-env
+    entrypoint: ["/usr/local/bin/worker"]
+volumes:
+  mongo-data:

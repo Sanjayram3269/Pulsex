@@ -1,0 +1,321 @@
+openapi: 3.1.0
+info: {title: PULSEX API, version: 1.0.0}
+servers: [{url: /api/v1}]
+security: []
+paths:
+  /health:
+    get:
+      operationId: health
+      summary: Process liveness
+      responses: {'200': {$ref: '#/components/responses/JSON'}}
+  /ready:
+    get:
+      operationId: readiness
+      summary: MongoDB and Redis readiness
+      responses: {'200': {$ref: '#/components/responses/JSON'}, '503': {$ref: '#/components/responses/Error'}}
+  /auth/register:
+    post:
+      operationId: registerCreator
+      summary: Register and issue a creator cookie
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/Credentials'}
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /auth/login:
+    post:
+      operationId: loginCreator
+      summary: Authenticate and issue a creator cookie
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/Credentials'}
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /auth/logout:
+    post:
+      operationId: logoutCreator
+      summary: Revoke the current creator cookie
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      responses: {'204': {description: Session revoked}, default: {$ref: '#/components/responses/Error'}}
+  /auth/me:
+    get:
+      operationId: getProfile
+      summary: Read the current creator profile
+      security: [{creatorSession: []}]
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+    patch:
+      operationId: updateProfile
+      summary: Change the current display name
+      security: [{creatorSession: []}]
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties: {name: {type: string, minLength: 2, maxLength: 60}}
+      responses: {'204': {description: Profile changed}, default: {$ref: '#/components/responses/Error'}}
+  /polls:
+    get:
+      operationId: listPolls
+      summary: List owned polls, most recent first
+      security: [{creatorSession: []}]
+      parameters: [{$ref: '#/components/parameters/Page'}, {$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+    post:
+      operationId: createPoll
+      summary: Create a draft
+      security: [{creatorSession: []}]
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/Poll'}
+      responses: {'201': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /polls/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: getOwnedPoll
+      summary: Read an owned poll
+      security: [{creatorSession: []}]
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+    put:
+      operationId: editDraftPoll
+      summary: Edit an owned draft
+      security: [{creatorSession: []}]
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/Poll'}
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /polls/{id}/action:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post:
+      operationId: actOnPoll
+      summary: Change poll state or duplicate a poll
+      security: [{creatorSession: []}]
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties: {action: {type: string, enum: [publish, close, archive, duplicate]}}
+      responses:
+        '200': {$ref: '#/components/responses/JSON'}
+        '201': {$ref: '#/components/responses/JSON'}
+        default: {$ref: '#/components/responses/Error'}
+  /polls/{id}/analytics:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: getPollAnalytics
+      summary: Current aggregate and hourly participation for seven days
+      security: [{creatorSession: []}]
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /polls/{id}/export:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: exportPollResults
+      summary: Download results CSV for an owned poll
+      security: [{creatorSession: []}]
+      responses:
+        '200':
+          description: Downloadable choice and vote counts
+          content: {text/csv: {schema: {type: string}}}
+        default: {$ref: '#/components/responses/Error'}
+  /polls/{id}/results:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: getCreatorResults
+      summary: Read a creator result snapshot
+      security: [{creatorSession: []}]
+      responses: {'200': {$ref: '#/components/responses/Snapshot'}, default: {$ref: '#/components/responses/Error'}}
+  /polls/{id}/events:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: streamCreatorResults
+      summary: Stream creator result snapshots
+      security: [{creatorSession: []}]
+      responses: {'200': {$ref: '#/components/responses/SSE'}, default: {$ref: '#/components/responses/Error'}}
+  /public/polls/{slug}:
+    parameters: [{$ref: '#/components/parameters/Slug'}]
+    get:
+      operationId: openAudiencePoll
+      summary: Open an audience poll and initialize its guest cookie
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /public/polls/{slug}/results:
+    parameters: [{$ref: '#/components/parameters/Slug'}]
+    get:
+      operationId: getAudienceResults
+      summary: Read a public result snapshot when visible
+      responses: {'200': {$ref: '#/components/responses/Snapshot'}, default: {$ref: '#/components/responses/Error'}}
+  /public/polls/{slug}/events:
+    parameters: [{$ref: '#/components/parameters/Slug'}]
+    get:
+      operationId: streamAudienceResults
+      summary: Stream state and visible result snapshots
+      responses: {'200': {$ref: '#/components/responses/SSE'}, default: {$ref: '#/components/responses/Error'}}
+  /public/polls/{slug}/votes:
+    parameters: [{$ref: '#/components/parameters/Slug'}]
+    post:
+      operationId: castVote
+      summary: Cast one vote using the guest or creator cookie
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [choice]
+              properties: {choice: {type: integer, minimum: 0, maximum: 7}}
+            example: {choice: 0}
+      responses:
+        '201':
+          description: Vote committed
+          content: {application/json: {example: {accepted: true}}}
+        default: {$ref: '#/components/responses/Error'}
+  /rooms:
+    get:
+      operationId: listRooms
+      summary: List owned rooms
+      security: [{creatorSession: []}]
+      parameters: [{$ref: '#/components/parameters/Page'}, {$ref: '#/components/parameters/Limit'}]
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+    post:
+      operationId: createRoom
+      summary: Create a waiting room with ordered poll slugs
+      security: [{creatorSession: []}]
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/Room'}
+      responses: {'201': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /rooms/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: getOwnedRoom
+      summary: Read an owned room
+      security: [{creatorSession: []}]
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+    put:
+      operationId: editWaitingRoom
+      summary: Edit a waiting room
+      security: [{creatorSession: []}]
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody: {$ref: '#/components/requestBodies/Room'}
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /rooms/{id}/action:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post:
+      operationId: actOnRoom
+      summary: Open or close a question, or finish the room
+      security: [{creatorSession: []}]
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, version]
+              properties:
+                action: {type: string, enum: [open, close, finish]}
+                index: {type: integer, minimum: 0, maximum: 19, description: Required for open}
+                seconds: {type: integer, minimum: 0, maximum: 3600}
+                version: {type: integer, minimum: 1}
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /public/rooms/{code}:
+    parameters: [{$ref: '#/components/parameters/Code'}]
+    get:
+      operationId: openAudienceRoom
+      summary: Read audience room and initialize guest presence
+      responses: {'200': {$ref: '#/components/responses/JSON'}, default: {$ref: '#/components/responses/Error'}}
+  /public/rooms/{code}/presence:
+    parameters: [{$ref: '#/components/parameters/Code'}]
+    post:
+      operationId: touchPresence
+      summary: Refresh the signed browser's room presence
+      parameters: [{$ref: '#/components/parameters/Origin'}]
+      responses: {'204': {description: Presence updated}, default: {$ref: '#/components/responses/Error'}}
+  /public/rooms/{code}/events:
+    parameters: [{$ref: '#/components/parameters/Code'}]
+    get:
+      operationId: streamRoom
+      summary: Stream room state, question, deadline and presence
+      responses: {'200': {$ref: '#/components/responses/SSE'}, default: {$ref: '#/components/responses/Error'}}
+components:
+  securitySchemes:
+    creatorSession: {type: apiKey, in: cookie, name: pulsex_session}
+  parameters:
+    Origin: {name: Origin, in: header, required: true, schema: {type: string}, description: Exact APP_ORIGIN}
+    Id: {name: id, in: path, required: true, schema: {type: string, pattern: '^[0-9a-f]{24}$'}}
+    Slug: {name: slug, in: path, required: true, schema: {type: string, pattern: '^[0-9a-f]{20}$'}}
+    Code: {name: code, in: path, required: true, schema: {type: string, pattern: '^[0-9a-f]{8}$'}}
+    Page: {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 1000, default: 1}}
+    Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 30}}
+  requestBodies:
+    Credentials:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [email, password]
+            properties:
+              email: {type: string, format: email}
+              password: {type: string, maxLength: 72, description: Registration requires 10 characters. Maximum is 72 UTF-8 bytes.}
+              name: {type: string, minLength: 2, maxLength: 60, description: Required for registration}
+    Poll:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [title, choices, visibility, guests]
+            properties:
+              title: {type: string, minLength: 3, maxLength: 140}
+              description: {type: string, maxLength: 1000}
+              choices: {type: array, minItems: 2, maxItems: 8, items: {type: string, minLength: 1, maxLength: 80}}
+              visibility: {type: string, enum: [live, after_close, private]}
+              guests: {type: boolean}
+              opens: {type: [string, 'null'], format: date-time}
+              closes: {type: [string, 'null'], format: date-time}
+          example: {title: 'What should we learn next?', choices: [Architecture, Design], visibility: live, guests: true}
+    Room:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [title, polls]
+            properties:
+              title: {type: string, minLength: 3, maxLength: 100}
+              polls: {type: array, minItems: 1, maxItems: 20, uniqueItems: true, items: {type: string, pattern: '^[0-9a-f]{20}$'}}
+  responses:
+    JSON:
+      description: JSON response
+      content: {application/json: {schema: {type: object}}}
+    Error:
+      description: API error including validation, authentication, authorization, visibility, duplicate voting, rate limits and dependency failures
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error:
+                type: object
+                required: [code, message]
+                properties: {code: {type: string}, message: {type: string}}
+          example: {error: {code: already_voted, message: You have already voted on this poll.}}
+    Snapshot:
+      description: Versioned Redis result projection
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [version, counts]
+            properties: {version: {type: integer}, counts: {type: array, items: {type: integer}}}
+          example: {version: 7, counts: [3, 2]}
+    SSE:
+      description: Full snapshots on initial connection and when state changes. Result counts may be omitted by policy.
+      content:
+        text/event-stream:
+          schema: {type: string}
+          example: |
+            retry: 2000
+            data: {"version":7,"state":"live","counts":[3,2]}
