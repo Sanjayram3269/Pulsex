@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/Sanjayram3269/Pulsex/backend/internal/models"
@@ -15,21 +16,18 @@ import (
 )
 
 var errClosed = errors.New("poll closed")
-var errChoice = errors.New("invalid choice")
 
 func (s *Server) vote(c *gin.Context) {
 	slug, ok := slugParam(c)
 	if !ok {
 		return
 	}
-	var in struct {
-		Choice *int `json:"choice"`
-	}
+	var in ballotInput
 	if !body(c, &in) {
 		return
 	}
-	if in.Choice == nil || *in.Choice < 0 || *in.Choice > 7 {
-		reject(c, "Choose a valid option.")
+	if !in.validate() {
+		reject(c, "Send one valid ballot for this question.")
 		return
 	}
 	ctx, cancel := request(c)
@@ -37,6 +35,11 @@ func (s *Server) vote(c *gin.Context) {
 	p, err := s.bySlug(ctx, slug)
 	if err != nil {
 		dbError(c, err)
+		return
+	}
+	ballot, valid := in.forPoll(p)
+	if !valid {
+		reject(c, "The response does not match this question.")
 		return
 	}
 	id, err := s.voter(ctx, c, p, false)
@@ -52,12 +55,10 @@ func (s *Server) vote(c *gin.Context) {
 		fail(c, 428, "guest_cookie", "Open the poll first and enable cookies to vote.")
 		return
 	}
-	err = s.cast(ctx, p, id, *in.Choice)
+	err = s.cast(ctx, p, id, ballot)
 	switch {
 	case errors.Is(err, errClosed):
 		conflict(c, "This poll is not accepting votes.")
-	case errors.Is(err, errChoice):
-		reject(c, "That option is not part of this poll.")
 	case mongo.IsDuplicateKeyError(err):
 		fail(c, 409, "already_voted", "You have already voted on this poll.")
 	case err != nil:
@@ -66,10 +67,10 @@ func (s *Server) vote(c *gin.Context) {
 		c.JSON(201, gin.H{"accepted": true})
 	}
 }
-func (s *Server) cast(ctx context.Context, p models.Poll, id string, choice int) error {
-	if choice >= len(p.Choices) {
-		return errChoice
-	}
+func (s *Server) cast(ctx context.Context, p models.Poll, id string, vote models.Vote) error {
+	vote.ID, vote.Poll, vote.Identity = bson.NewObjectID(), p.ID, id
+	vote.DemoExpires = p.DemoExpires
+	increments := countBallot(p, vote)
 	session, err := s.db.Client.StartSession()
 	if err != nil {
 		return err
@@ -81,7 +82,7 @@ func (s *Server) cast(ctx context.Context, p models.Poll, id string, choice int)
 			bson.M{"$or": bson.A{bson.M{"state": "live"}, bson.M{"state": "scheduled", "opens": bson.M{"$lte": now}}}},
 			bson.M{"$or": bson.A{bson.M{"closes": nil}, bson.M{"closes": bson.M{"$gt": now}}}},
 		}}
-		update := bson.M{"$inc": bson.M{"counts." + choiceField(choice): 1, "version": 1}, "$set": bson.M{"pending": true}, "$min": bson.M{"dirtyAt": now}}
+		update := bson.M{"$inc": increments, "$set": bson.M{"pending": true}, "$min": bson.M{"dirtyAt": now}}
 		res, err := s.db.Polls.UpdateOne(tx, filter, update)
 		if err != nil {
 			return nil, err
@@ -89,8 +90,35 @@ func (s *Server) cast(ctx context.Context, p models.Poll, id string, choice int)
 		if res.MatchedCount != 1 {
 			return nil, errClosed
 		}
-		return s.db.Votes.InsertOne(tx, models.Vote{Poll: p.ID, Identity: id, Choice: choice, Timestamp: now})
+		vote.Timestamp = now
+		return s.db.Votes.InsertOne(tx, vote)
 	}, options.Transaction().SetReadConcern(readconcern.Snapshot()).SetWriteConcern(writeconcern.Majority()))
 	return err
 }
-func choiceField(choice int) string { return string(rune('0' + choice)) }
+func rankPoints(question *models.Question, size int) []int64 {
+	if question != nil && question.Type == models.RankedChoice {
+		return make([]int64, size)
+	}
+	return nil
+}
+
+func countBallot(p models.Poll, vote models.Vote) bson.M {
+	changes := bson.M{"version": 1, "ballots": 1}
+	switch vote.Kind {
+	case models.SingleChoice, models.Rating:
+		changes["counts."+strconv.Itoa(vote.Choice)] = 1
+	case models.MultipleChoice:
+		for _, choice := range vote.Selections {
+			changes["counts."+strconv.Itoa(choice)] = 1
+		}
+	case models.RankedChoice:
+		changes["counts."+strconv.Itoa(vote.Selections[0])] = 1
+		for rank, choice := range vote.Selections {
+			points := len(p.Choices) - rank - 1
+			if points > 0 {
+				changes["rankPoints."+strconv.Itoa(choice)] = points
+			}
+		}
+	}
+	return changes
+}

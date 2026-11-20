@@ -17,6 +17,7 @@ import (
 )
 
 type roomInput struct {
+	Theme string   `json:"theme"`
 	Title string   `json:"title"`
 	Polls []string `json:"polls"`
 }
@@ -27,6 +28,12 @@ func readRoom(c *gin.Context) (roomInput, bool) {
 		return in, false
 	}
 	in.Title = strings.TrimSpace(in.Title)
+	var themeOK bool
+	in.Theme, themeOK = themePreset(in.Theme)
+	if !themeOK {
+		reject(c, "Choose a valid theme.")
+		return in, false
+	}
 	if !singleLine(in.Title, 3, 100) || len(in.Polls) < 1 || len(in.Polls) > 20 {
 		reject(c, "Use a room title of 3–100 characters and select 1–20 polls.")
 		return in, false
@@ -64,7 +71,7 @@ func (s *Server) listRooms(c *gin.Context) {
 	if !ok {
 		return
 	}
-	cur, err := s.db.Rooms.Find(ctx, bson.M{"owner": id}, options.Find().SetLimit(limit+1).SetSkip(skip).SetSort(bson.D{{Key: "created", Value: -1}, {Key: "_id", Value: -1}}))
+	cur, err := s.db.Rooms.Find(ctx, bson.M{"owner": id, "quiz": nil}, options.Find().SetLimit(limit+1).SetSkip(skip).SetSort(bson.D{{Key: "created", Value: -1}, {Key: "_id", Value: -1}}))
 	if err != nil {
 		dbError(c, err)
 		return
@@ -92,7 +99,7 @@ func (s *Server) createRoom(c *gin.Context) {
 	if !ok || !s.validateRoomPolls(ctx, c, user, in) {
 		return
 	}
-	room := models.Room{ID: bson.NewObjectID(), Owner: user, Code: token(4), Title: in.Title, Polls: in.Polls, State: "waiting", Active: -1, Version: 1, Created: time.Now()}
+	room := models.Room{ID: bson.NewObjectID(), Owner: user, Code: token(4), Title: in.Title, Polls: in.Polls, Theme: in.Theme, State: "waiting", Active: -1, Version: 1, Created: time.Now()}
 	if _, err := s.db.Rooms.InsertOne(ctx, room); err != nil {
 		dbError(c, err)
 		return
@@ -109,7 +116,7 @@ func (s *Server) ownedRoom(ctx context.Context, c *gin.Context) (models.Room, bo
 	if !ok {
 		return room, false
 	}
-	if err := s.db.Rooms.FindOne(ctx, bson.M{"_id": id, "owner": user}).Decode(&room); err != nil {
+	if err := s.db.Rooms.FindOne(ctx, bson.M{"_id": id, "owner": user, "quiz": nil}).Decode(&room); err != nil {
 		dbError(c, err)
 		return room, false
 	}
@@ -133,7 +140,7 @@ func (s *Server) editRoom(c *gin.Context) {
 	if !ok || !s.validateRoomPolls(ctx, c, room.Owner, in) {
 		return
 	}
-	err := s.db.Rooms.FindOneAndUpdate(ctx, bson.M{"_id": room.ID, "state": "waiting", "version": room.Version}, bson.M{"$set": bson.M{"title": in.Title, "polls": in.Polls}, "$inc": bson.M{"version": 1}}, options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&room)
+	err := s.db.Rooms.FindOneAndUpdate(ctx, bson.M{"_id": room.ID, "state": "waiting", "version": room.Version}, bson.M{"$set": bson.M{"title": in.Title, "polls": in.Polls, "theme": in.Theme}, "$inc": bson.M{"version": 1}}, options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&room)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		conflict(c, "Only unchanged waiting rooms can be edited.")
 		return
@@ -236,14 +243,17 @@ func (s *Server) notifyRoom(ctx context.Context, code string) {
 }
 
 type roomView struct {
-	Title   string     `json:"title"`
-	State   string     `json:"state"`
-	Slug    string     `json:"slug,omitempty"`
-	Version int64      `json:"version"`
-	Active  int        `json:"active"`
-	Total   int        `json:"total"`
-	Ends    *time.Time `json:"ends"`
-	Present int64      `json:"present"`
+	QAEnabled bool       `json:"qaEnabled"`
+	QAVersion int64      `json:"qaVersion"`
+	Theme     string     `json:"theme,omitempty"`
+	Title     string     `json:"title"`
+	State     string     `json:"state"`
+	Slug      string     `json:"slug,omitempty"`
+	Version   int64      `json:"version"`
+	Active    int        `json:"active"`
+	Total     int        `json:"total"`
+	Ends      *time.Time `json:"ends"`
+	Present   int64      `json:"present"`
 }
 
 func roomCode(c *gin.Context) (string, bool) {
@@ -256,10 +266,10 @@ func roomCode(c *gin.Context) (string, bool) {
 }
 func (s *Server) getRoom(ctx context.Context, code string) (roomView, error) {
 	var room models.Room
-	if err := s.db.Rooms.FindOne(ctx, bson.M{"code": code}).Decode(&room); err != nil {
+	if err := s.db.Rooms.FindOne(ctx, bson.M{"code": code, "quiz": nil}).Decode(&room); err != nil {
 		return roomView{}, err
 	}
-	view := roomView{Title: room.Title, State: room.State, Version: room.Version, Active: room.Active, Total: len(room.Polls), Ends: room.Ends}
+	view := roomView{Title: room.Title, Theme: room.Theme, QAEnabled: room.QAEnabled, QAVersion: room.QAVersion, State: room.State, Version: room.Version, Active: room.Active, Total: len(room.Polls), Ends: room.Ends}
 	if room.Active >= 0 && room.State != "ended" {
 		poll, err := s.bySlug(ctx, room.Polls[room.Active])
 		if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
@@ -316,7 +326,7 @@ func (s *Server) presence(c *gin.Context) {
 	}
 	ctx, cancel := request(c)
 	defer cancel()
-	if err := s.db.Rooms.FindOne(ctx, bson.M{"code": code}).Err(); err != nil {
+	if err := s.db.Rooms.FindOne(ctx, bson.M{"code": code, "quiz": nil}).Err(); err != nil {
 		dbError(c, err)
 		return
 	}

@@ -1,10 +1,17 @@
 import { lazy, Suspense, useState } from 'react'
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
-import { CircleDot, LayoutGrid, LogOut, Plus, Radio, Settings as SettingsIcon } from 'lucide-react'
+import { CircleDot, LayoutGrid, LogOut, Plus, Radio, Trophy, Settings as SettingsIcon } from 'lucide-react'
 import { Brand, Empty, ErrorBox, Loading } from '../components/ui'
 import { api, useUser } from '../services/api'
 import { Landing } from '../features/landing'
 import { PublicFrame } from '../components/public-frame'
+const Demo = lazy(() => import('../features/demo').then(m => ({default:m.Demo})))
+const SessionInsights = lazy(() => import('../features/session-insights').then(m => ({default:m.SessionInsights})))
+const Quizzes = lazy(() => import('../features/quiz').then(m => ({default:m.Quizzes})))
+const QuizHost = lazy(() => import('../features/quiz').then(m => ({default:m.QuizHost})))
+const QuizAudience = lazy(() => import('../features/quiz').then(m => ({default:m.QuizAudience})))
+const JoinByCode = lazy(() => import('../features/quiz').then(m => ({default:m.JoinByCode})))
+const QuizEditor = lazy(() => import('../features/quiz-editor').then(m => ({default:m.QuizEditor})))
 const Studio = lazy(() => import('../features/studio').then(m => ({default:m.Studio})))
 const PollDetails = lazy(() => import('../features/studio').then(m => ({default:m.PollDetails})))
 const Editor = lazy(() => import('../features/editor').then(m => ({default:m.Editor})))
@@ -29,6 +36,7 @@ function Workspace() {
     <Brand/><div className="sidebar-label">WORKSPACE</div>
     <nav aria-label="Workspace navigation">
       <NavLink end to="/studio"><LayoutGrid size={19}/> Studio</NavLink><NavLink to="/studio/polls"><CircleDot size={19}/> Polls</NavLink><NavLink to="/studio/rooms"><Radio size={19}/> Live rooms</NavLink>
+      <NavLink to="/studio/quizzes"><Trophy size={19}/> Quizzes</NavLink>
       <NavLink to="/studio/settings"><SettingsIcon size={19}/> Settings</NavLink>
     </nav>
     <div className="identity-chip"><span className="avatar">{Array.from(user.data.name)[0].toUpperCase()}</span><div><strong>{user.data.name}</strong><small>Creator</small></div>
@@ -47,10 +55,17 @@ export function App() {
   return <><a href="#main" className="skip-link">Skip to content</a><Suspense fallback={<PublicFrame><Loading/></PublicFrame>}><Routes>
     <Route path="/" element={<Landing/>}/><Route path="/login" element={<Identity key="login" register={false}/>}/><Route path="/register" element={<Identity key="register" register/>}/>
     <Route path="/p/:slug" element={<GuestPoll/>}/><Route path="/room/:code" element={<AudienceRoom/>}/><Route path="/room/:code/present" element={<AudienceRoom presentation/>}/>
+    <Route path="/quiz/:code" element={<QuizAudience/>}/><Route path="/quiz/:code/present" element={<QuizAudience presentation/>}/>
+    <Route path="/demo" element={<Demo/>}/>
+    <Route path="/join/:code" element={<JoinByCode/>}/>
     <Route path="/studio" element={<Workspace/>}>
       <Route index element={<Studio/>}/><Route path="polls" element={<Studio/>}/>
       <Route path="polls/new" element={<Editor/>}/><Route path="polls/:id" element={<PollDetails/>}/><Route path="polls/:id/edit" element={<Editor/>}/><Route path="polls/:id/analytics" element={<Insights/>}/>
       <Route path="rooms" element={<Arena/>}/><Route path="rooms/new" element={<RoomEditor/>}/><Route path="rooms/:id" element={<HostRoom/>}/><Route path="rooms/:id/edit" element={<RoomEditor/>}/>
+      <Route path="quizzes" element={<Quizzes/>}/><Route path="quizzes/new" element={<QuizEditor/>}/>
+      <Route path="quizzes/:id" element={<QuizHost/>}/><Route path="quizzes/:id/edit" element={<QuizEditor/>}/>
+      <Route path="rooms/:id/insights" element={<SessionInsights key="room"/>}/>
+      <Route path="quizzes/:id/insights" element={<SessionInsights key="quiz" quiz/>}/>
       <Route path="settings" element={<Settings/>}/>
     </Route>
     <Route path="*" element={<PublicFrame><Empty title="Page not found" description="This link may have moved or been entered incorrectly." to="/" action="Back to PULSEX"/></PublicFrame>}/>

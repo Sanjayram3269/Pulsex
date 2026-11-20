@@ -4,10 +4,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, Expand, Plus, Radio, Timer, Users } from 'lucide-react'
 import { Badge, Empty, ErrorBox, Heading, Loading } from '../components/ui'
 import { Share } from '../components/share'
+import { ThemeSelect } from '../components/themes'
 import { useStream } from '../hooks/live'
+import { toggleFullscreen, usePresentationShortcut } from '../hooks/presentation'
 import { api } from '../services/api'
 import type { AudienceRoom as AudienceData, Page, Poll, Room } from '../types/types'
 import { PollAudience } from './audience'
+import { QAWall } from './qa-wall'
 import { PublicFrame } from '../components/public-frame'
 
 const useRoom = (id: string) => useQuery({queryKey:['room',id],queryFn:()=>api<Room>('/rooms/'+id)})
@@ -25,6 +28,7 @@ function RoomForm({ room }: { room?: Room }) {
   const [page,setPage] = useState(1)
   const [known,setKnown] = useState<Record<string,string>>({})
   const list = useQuery({queryKey:['roomPollChoices',page],queryFn:()=>api<Page<Poll>>('/polls?limit=30&page='+page)})
+  const [theme,setTheme] = useState(room?.theme ?? 'obsidian')
   const [title,setTitle] = useState(room?.title ?? '')
   const [polls,setPolls] = useState<string[]>(room?.polls ?? [])
   const [error,setError] = useState<unknown>()
@@ -39,13 +43,14 @@ function RoomForm({ room }: { room?: Room }) {
     <form className="panel narrow form-stack" onSubmit={async e=>{
       e.preventDefault();setError(undefined);setBusy(true)
       try {
-        const result = await api<Room>(room ? '/rooms/'+room.id : '/rooms',room ? 'PUT' : 'POST',{title,polls})
+        const result = await api<Room>(room ? '/rooms/'+room.id : '/rooms',room ? 'PUT' : 'POST',{title,polls,theme})
         client.setQueryData(['room',result.id],result)
         void client.invalidateQueries({queryKey:['rooms']})
         navigate('/studio/rooms/'+result.id)
       } catch (err) { setError(err) } finally {setBusy(false)}
     }}>
       <label>Room name<input required minLength={3} maxLength={100} value={title} onChange={e=>setTitle(e.target.value)} placeholder="Friday workshop"/></label>
+      <ThemeSelect value={theme} onChange={setTheme}/>
       {list.isPending ? <Loading/> : list.isError ? <ErrorBox error={list.error}/> : <fieldset className="form-stack">
         <legend>Available polls</legend>
         {choices.length===0 && <p className="muted">No available polls on this page. <Link to="/studio/polls/new">Create a poll</Link></p>}
@@ -102,7 +107,7 @@ export function HostRoom() {
     } catch (err) {setError(err);void room.refetch()} finally {setBusy(false)}
   }
   return <><Heading eyebrow="HOST CONTROL" title={data.title} action={<Badge state={live?.state ?? data.state}/>}>Room code {code.toUpperCase()} · {live?.present ?? 0} present</Heading>
-    <div className="actions toolbar"><Link className="btn secondary" target="_blank" to={'/room/'+code+'/present'}><Expand size={17}/> Presentation</Link>
+    <div className="actions toolbar"><Link className="btn secondary" to="insights">Session insights</Link><Link className="btn secondary" target="_blank" to={'/room/'+code+'/present'}><Expand size={17}/> Presentation</Link>
       {data.state==='waiting' && <Link className="btn secondary" to="edit">Edit room</Link>}
       {data.state==='live' && <button className="btn secondary" disabled={busy} onClick={()=>void action('close')}>Close question</button>}
       {data.state!=='ended' && <button className="btn secondary" disabled={busy} onClick={()=>void action('finish')}>End room</button>}
@@ -112,7 +117,9 @@ export function HostRoom() {
     <div className="content-grid"><section className="panel form-stack"><h2>Questions</h2><label>Timer in seconds (0 for no timer)<input type="number" min="0" max="3600" value={seconds} onChange={e=>setSeconds(Number(e.target.value))}/></label>
       <ol className="question-order">{data.polls.map((slug,i)=><li key={slug}><span>{i+1}. {names.data?.[slug] ?? 'Question '+(i+1)}</span>
         {i===data.active ? <Badge state={data.state==='live' ? live?.state ?? 'live' : 'closed'}/> : i>data.active && data.state!=='ended' && <button className="btn secondary compact" disabled={busy || !Number.isInteger(seconds) || seconds<0 || seconds>3600} onClick={()=>void action('open',i)}>Open question {i+1}</button>}</li>)}</ol>
-    </section><Share path={'/room/'+code} label="Invite the audience"/></div></>
+    </section><Share path={'/room/'+code} label="Invite the audience"/></div>
+    <QAWall code={code} roomId={id}/>
+  </>
 }
 async function fetchQuestionNames(slugs: string[]) {
   const result: Record<string,string> = {}
@@ -124,6 +131,7 @@ async function fetchQuestionNames(slugs: string[]) {
   return result
 }
 export function AudienceRoom({ presentation = false }: { presentation?: boolean }) {
+  usePresentationShortcut(presentation)
   const code = useParams().code ?? ''
   const path = '/public/rooms/'+code.toLowerCase()
   const query = useQuery({queryKey:['audienceRoom',code],queryFn:()=>api<AudienceData>(path)})
@@ -136,11 +144,12 @@ export function AudienceRoom({ presentation = false }: { presentation?: boolean 
     return ()=>window.clearInterval(interval)
   },[!!query.data,path,presentation])
   const room = stream.value ?? query.data
-  return <PublicFrame>{query.isError ? <ErrorBox error={query.error} retry={()=>void query.refetch()}/> : !room ? <Loading/> : <>
+  return <PublicFrame theme={room?.theme}>{query.isError ? <ErrorBox error={query.error} retry={()=>void query.refetch()}/> : !room ? <Loading/> : <>
     <div className="room-banner panel"><div><p className="eyebrow">{presentation ? 'PRESENTATION' : 'LIVE ROOM'}</p><h2>{room.title}</h2><span className="muted">Code {code.toUpperCase()}{room.active>=0 && ' · Question '+(room.active+1)+' of '+room.total}</span></div>
       <div className="actions"><Badge state={room.state}/><span className="timer"><Users size={16}/> {room.present}</span>{room.state==='live' && <TimerDisplay ends={room.ends}/>}
-        {presentation && <button className="btn secondary compact" onClick={()=>{ const op=document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();void op.catch(()=>undefined) }}><Expand size={16}/> Full screen</button>}</div></div>
+        {presentation && <button className="btn secondary compact" title="Full screen (F)" onClick={toggleFullscreen}><Expand size={16}/> Full screen</button>}</div></div>
     {room.slug && room.state!=='ended' ? <PollAudience key={room.slug+presentation} slug={room.slug} presentation={presentation}/> :
       <Empty title={room.state==='ended' ? 'This session has ended' : 'Waiting for the host'} description={room.state==='ended' ? 'Thanks for joining.' : 'The next question will appear when your host opens it.'}/>}
+    {room.qaEnabled && <QAWall code={code} presentation={presentation} revision={room.qaVersion+'/'+room.state}/>}
   </>}</PublicFrame>
 }

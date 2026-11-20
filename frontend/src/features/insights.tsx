@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { Download } from 'lucide-react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ErrorBox, Heading, Loading } from '../components/ui'
-import { Results } from '../components/results'
+import { PollResults } from '../components/results'
 import { api, base } from '../services/api'
 import type { Analytics } from '../types/types'
 
@@ -21,7 +21,7 @@ export function Insights() {
     return {hour:new Date(at).toLocaleTimeString([],{hour:'numeric'}),votes:buckets.get(at) ?? 0}
   })
   return <><Heading eyebrow="PULSE INSIGHTS" title={poll.title} action={<a className="btn secondary" href={base+'/polls/'+id+'/export'}><Download size={17}/> Export CSV</a>}>Results and participation over time.</Heading>
-    <div className="content-grid"><section className="panel"><Results choices={poll.choices} counts={snapshot.counts}/></section>
+    <div className="content-grid"><section className="panel"><PollResults poll={poll} result={snapshot}/></section>
       <section className="panel analytics"><h2>Votes by hour</h2><p className="muted">Last 24 hours · local time</p>
         <div className="chart"><ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chart} margin={{top:12,right:12,left:-22,bottom:0}} accessibilityLayer>
