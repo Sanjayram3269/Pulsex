@@ -7,7 +7,10 @@ async function capture(page: Page, name: string) {
   const dir = process.env.SCREENSHOT_DIR
   if (!dir) return
   await mkdir(dir,{recursive:true})
-  await page.evaluate(() => document.fonts.ready)
+  await page.evaluate(async () => {
+    await document.fonts.ready
+    window.scrollTo(0,0)
+  })
   await page.screenshot({path:join(dir,name+'.png'),animations:'disabled',fullPage:true})
 }
 
