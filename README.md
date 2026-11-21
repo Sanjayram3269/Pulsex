@@ -6,9 +6,11 @@
 
 [![Verify](https://github.com/Sanjayram3269/Pulsex/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanjayram3269/Pulsex/actions/workflows/ci.yml)
 
-![PULSEX V2 landing page](docs/screenshots/v2-landing.png)
+[Open PULSEX](https://pulsex-sanjayram.onrender.com) · [Try the live demo](https://pulsex-sanjayram.onrender.com/demo)
 
-PULSEX lets presenters run live polls, timed quizzes, and moderated Q&A from one workspace. Give participants one link or QR code and follow responses on a shared presentation screen. Try the guided demo after starting the app to create a temporary live room without signing up.
+![PULSEX homepage on the public deployment](docs/screenshots/production/homepage.jpg)
+
+PULSEX lets presenters run live polls, timed quizzes, and moderated Q&A from one workspace. Give participants one link or QR code and follow responses on a shared presentation screen. The guided demo creates a temporary live room without signup.
 
 ## What you can do
 
@@ -133,7 +135,9 @@ Set `BASE_URL` if using a different local origin. Set `SCREENSHOT_DIR` to captur
 
 The root Dockerfile builds both applications, then copies the Go binaries and SPA into a non-root runtime image. Deploy it to a Docker-compatible web service with a MongoDB replica set and Redis. Configure HTTPS, a stable guest signing key, the exact public origin, health checks, and an active projection worker. [Deployment and incident guide](docs/operations.md)
 
-**Public deployment status:** awaiting authenticated hosting access and managed data services.
+The public preview runs on Render with MongoDB Atlas and Upstash Redis in Oregon. The Docker service serves the React app and Go API from one HTTPS origin, with the projection worker enabled. [Readiness endpoint](https://pulsex-sanjayram.onrender.com/api/v1/ready)
+
+All five Chromium Playwright tests passed against the hosted app. A separate HTTPS API smoke test verified secure session cookies, authentication and Origin checks for poll creation, duplicate vote rejection, and a versioned results update on an independent SSE connection. The free web instance can take time to wake after inactivity. [Hosted verification and release limits](docs/v2-verification.md)
 
 ## Assignment and AI disclosure
 

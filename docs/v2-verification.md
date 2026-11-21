@@ -26,10 +26,14 @@ In the local Windows Docker run, 30 simultaneous multi-select ballots produced 6
 | Separate frontend and backend, server validation, basic login and protected creation | Implemented and locally verified |
 | Create, share, vote, see live results | Exercised with independent browser contexts |
 | README, GitHub source and architectural decisions | Included |
-| Working public deployment | Pending authenticated hosting and managed MongoDB and Redis access |
+| Working public deployment | [Hosted PULSEX](https://pulsex-sanjayram.onrender.com). Public readiness returned HTTP 200 and all five hosted Chromium tests passed. |
 | Public 3–5 minute submission video and AI disclosure | V1 local recording and AI disclosure exist. Public video and V2 walkthrough remain pending. |
 | Submit by email | Pending the required approval and public links |
 
 ## Release limits
 
-Quiz sessions cap enrollment at 200 signed browser identities. Analytics distinguish browser identities from people and disclose the quiz participation denominator. Regular rooms expose recent browser presence and poll ballot counts. The comparison view pairs sessions of the same type. Presenter theme presets and a true/false question starter ship with the release. Saved custom template libraries and historical rank-movement tracking remain future work. Quiz and Q&A multi-replica failover at production scale, managed service limits, and public TLS have yet to be verified.
+Quiz sessions cap enrollment at 200 signed browser identities. Analytics distinguish browser identities from people and disclose the quiz participation denominator. Regular rooms expose recent browser presence and poll ballot counts. The comparison view pairs sessions of the same type. Presenter theme presets and a true/false question starter ship with the release. Saved custom template libraries and historical rank-movement tracking remain future work. Hosted load, managed service capacity, and multi-replica failover remain unverified.
+
+## Hosted verification
+
+On November 21, 2026, Render deployed application commit `4b9bdcd68ac147cc8e8d331585ee091d862e482a` with Atlas and Upstash. Five Chromium tests passed against the public HTTPS endpoint. They exercised creator signup and sign-in, mobile guest voting, independent live spectators and reconnects, CSV, two-question presentation, advanced poll types, quiz scoring, moderated Q&A, and the guided demo. An API smoke test independently verified secure cookie attributes, anonymous and untrusted-Origin creation rejection, publish, guest voting, an updated SSE snapshot, duplicate vote rejection, close, archive and sign-out. Test accounts and responses were synthetic.

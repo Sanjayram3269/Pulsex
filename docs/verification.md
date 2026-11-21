@@ -44,8 +44,8 @@ PULSEX was exercised with real Chromium browser contexts and the Docker services
 | Basic signup and login with protected management | Verified locally | Signup/login/logout and unauthorized resource tests. |
 | README with local run steps and decisions | Complete | Quickstart, deployment, screenshots, API, architecture, operations and security documentation. |
 | Public GitHub repository | Complete | [Sanjayram3269/Pulsex](https://github.com/Sanjayram3269/Pulsex). |
-| Working public deployment | Pending | Requires authenticated hosting plus transaction-capable MongoDB and Redis. Local Compose is running. |
+| Working public deployment | Complete | [PULSEX public preview](https://pulsex-sanjayram.onrender.com). Public HTTPS readiness and the hosted Chromium suite passed. [Hosted verification](v2-verification.md) |
 | 3–5 minute publicly viewable demo | Pending publication | A scripted local walkthrough and a recording guide show the working flow, consistency challenge and AI disclosure. |
 | Email submission | Pending | The submission requires all three public links. |
 
-Public TLS, production proxy settings, hosted failover and long-duration load remain unverified. Local burst measurements describe this environment and workload only. The UI supports mobile and desktop layouts. The accessibility result is scoped to the tested guest page.
+Public HTTPS and live SSE were verified on Render. Hosted failover and long-duration load remain unverified. Local burst measurements describe this environment and workload only. The UI supports mobile and desktop layouts. The accessibility result is scoped to the tested guest page.

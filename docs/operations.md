@@ -19,6 +19,8 @@ Provider references: [Render Docker](https://render.com/docs/docker) · [Render 
 
 ## V2 deployment notes
 
+The evaluation deployment runs on a free Render Docker web service, MongoDB Atlas and Upstash Redis in Oregon. Atlas allows Render's Oregon outbound ranges, and the application database user has read/write permission scoped to `pulsex`. Upstash uses a TLS connection. Render stores the deployment secrets in the web service environment. [Public app](https://pulsex-sanjayram.onrender.com) · [Hosted verification](v2-verification.md)
+
 Deploy the web API and projection worker from the same V2 image. V1 documents continue to load without a data migration. Coordinate the upgrade so old workers do not process new question types. The startup index setup adds the quiz, Q&A, moderation, and demo expiration indexes.
 
 Render can run the web image with the internal worker enabled. Its free web instances can spin down, so a free setup is suitable for an evaluation preview. For an always-on deployment, use a paid container service with transaction-capable MongoDB and a Redis endpoint supporting Lua, Pub/Sub and sorted sets. Confirm the offered database limits before selecting tiers. [Render free instances](https://render.com/docs/free) · [Render pricing](https://render.com/pricing) · [MongoDB Atlas free limits](https://www.mongodb.com/docs/atlas/reference/free-shared-limitations/)
